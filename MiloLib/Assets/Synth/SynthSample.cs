@@ -1,5 +1,6 @@
 ﻿using MiloLib.Utils;
 using MiloLib.Classes;
+using System.Data.SqlTypes;
 
 namespace MiloLib.Assets
 {
@@ -156,13 +157,21 @@ namespace MiloLib.Assets
                 objFields = objFields.Read(reader, parent, entry);
 
             file = Symbol.Read(reader);
+
             looped = reader.ReadBoolean();
 
-            loopStartSample = reader.ReadUInt32();
-            if (revision > 2)
-                loopEndSample = reader.ReadInt32();
+            if (looped)
+            {
+                loopStartSample = reader.ReadUInt32();
+                if (revision > 2)
+                    loopEndSample = reader.ReadInt32();
+            }
+
+            reader.BaseStream.Position += 3; // Padding
 
             sampleData = sampleData.Read(reader);
+
+            reader.BaseStream.Position += 4;
 
             if (standalone)
                 if ((reader.Endianness == Endian.BigEndian ? 0xADDEADDE : 0xDEADDEAD) != reader.ReadUInt32()) throw new Exception("Got to end of standalone asset but didn't find the expected end bytes, read likely did not succeed");
@@ -180,12 +189,22 @@ namespace MiloLib.Assets
             Symbol.Write(writer, file);
             writer.WriteBoolean(looped);
 
-            writer.WriteUInt32(loopStartSample);
-            if (revision > 2)
-                writer.WriteInt32(loopEndSample);
+            if (looped)
+            {
+                writer.WriteUInt32(loopStartSample);
+                if (revision > 2)
+                    writer.WriteInt32(loopEndSample);
+            }
 
+            writer.BaseStream.Position += 2; // Padding
+
+            writer.WriteBlock([0x10]);
 
             sampleData.Write(writer);
+
+            writer.BaseStream.Position += 3;
+
+            writer.WriteBlock([0x01]);
 
             if (standalone)
                 writer.WriteBlock(new byte[4] { 0xAD, 0xDE, 0xAD, 0xDE });
