@@ -6,7 +6,7 @@ using MiloLib.Utils;
 
 namespace MiloLib.Assets.Ham
 {
-    public class HamMove : Object
+    public class DancerSequence : Object
     {
         private Dictionary<Game.MiloGame, uint> gameRevisions = new Dictionary<Game.MiloGame, uint>
         {
@@ -17,7 +17,7 @@ namespace MiloLib.Assets.Ham
         private ushort revision;
         private ushort altRevision;
 
-        public HamMove Read(EndianReader reader, bool standalone, DirectoryMeta parent, DirectoryMeta.Entry entry)
+        public DancerSequence Read(EndianReader reader, bool standalone, DirectoryMeta parent, DirectoryMeta.Entry entry)
         {
             if (standalone)
             {

@@ -70,7 +70,16 @@ namespace MiloLib.Assets.UI
             {
                 if (revision != 0)
                     cam = Symbol.Read(reader);
+
+                if (revision == 2)
+                {
+                    unknownSymbol = Symbol.Read(reader);
+                }
+
             }
+
+
+
 
             if (revision <= 1)
             {
@@ -79,6 +88,8 @@ namespace MiloLib.Assets.UI
 
             if (revision == 2)
             {
+
+
                 testEvent = Symbol.Read(reader);
                 if (standalone)
                 {
@@ -135,7 +146,10 @@ namespace MiloLib.Assets.UI
                 if (revision != 0)
                     Symbol.Write(writer, cam);
                 if (revision == 2)
+                {
                     Symbol.Write(writer, unknownSymbol);
+                }
+
             }
 
             if (revision <= 1)

@@ -43,6 +43,11 @@ namespace MiloLib.Assets.Ham
 
             base.Read(reader, false, parent, entry);
 
+            if (revision >= 4)
+            {
+                return this;
+            }
+
             // don't read these fields if the entry is in another directory
             if (entry != null && !entry.isProxy)
             {
@@ -81,30 +86,34 @@ namespace MiloLib.Assets.Ham
 
             base.Write(writer, false, parent, entry);
 
-            if (entry != null && !entry.isProxy)
+            if (revision < 4)
             {
-
-                Symbol.Write(writer, unknownSym);
-
-                if (revision != 0)
+                if (entry != null && !entry.isProxy)
                 {
-                    writer.WriteBoolean(unkBool);
+
+                    Symbol.Write(writer, unknownSym);
+
+                    if (revision != 0)
+                    {
+                        writer.WriteBoolean(unkBool);
+                    }
+
+                    if (revision > 1)
+                    {
+                        writer.WriteBoolean(useSmoothing);
+                        writer.WriteFloat(smoothing);
+                        writer.WriteFloat(correction);
+                        writer.WriteFloat(prediction);
+                        writer.WriteFloat(jitterRadius);
+                        writer.WriteFloat(maxDeviationRadius);
+                    }
+
+                    if (revision > 2)
+                    {
+                        writer.WriteBoolean(unkBool3);
+                    }
                 }
 
-                if (revision > 1)
-                {
-                    writer.WriteBoolean(useSmoothing);
-                    writer.WriteFloat(smoothing);
-                    writer.WriteFloat(correction);
-                    writer.WriteFloat(prediction);
-                    writer.WriteFloat(jitterRadius);
-                    writer.WriteFloat(maxDeviationRadius);
-                }
-
-                if (revision > 2)
-                {
-                    writer.WriteBoolean(unkBool3);
-                }
             }
 
             if (standalone)

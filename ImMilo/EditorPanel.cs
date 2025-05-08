@@ -193,19 +193,89 @@ public class EditorPanel
         }
     }
 
+    private static void DrawRndPropAnim(RndPropAnim propAnim, int id)
+    {
+        if (ImGui.CollapsingHeader($"Animation Properties##{id}"))
+        {
+            ImGui.Indent();
+
+            // Display basic animation properties
+            Draw(propAnim.anim, id + 1);
+
+            // Display prop keys
+            if (ImGui.CollapsingHeader($"Prop Keys ({propAnim.propKeys.Count})##{id}"))
+            {
+                ImGui.Indent();
+
+                for (int i = 0; i < propAnim.propKeys.Count; i++)
+                {
+                    var propKey = propAnim.propKeys[i];
+                    if (ImGui.TreeNode($"Key {i}: {propKey.target}##{id}_{i}"))
+                    {
+                        ImGui.Text($"Type: {propKey.type1}");
+                        ImGui.Text($"Interpolation: {propKey.interpolation}");
+                        ImGui.Text($"Interp Handler: {propKey.interpHandler}");
+                        ImGui.Text($"Exception Type: {propKey.exceptionType}");
+
+                        // Display key values
+                        if (ImGui.TreeNode($"Keys ({propKey.keys.Count})##{id}_{i}_keys"))
+                        {
+                            for (int j = 0; j < propKey.keys.Count; j++)
+                            {
+                                var key = propKey.keys[j];
+                                DrawAnimEvent(key, j, propKey);
+                            }
+                            ImGui.TreePop();
+                        }
+
+                        ImGui.TreePop();
+                    }
+                }
+
+                ImGui.Unindent();
+            }
+
+            ImGui.Unindent();
+        }
+    }
+
+    // Add this method to handle different types of animation events
+    private static void DrawAnimEvent(RndPropAnim.PropKey.IAnimEvent animEvent, int id, RndPropAnim.PropKey parent)
+    {
+        if (animEvent is RndPropAnim.PropKey.AnimEventSymbol symbolEvent)
+        {
+            if (ImGui.TreeNode($"Symbol Event (Pos: {symbolEvent.Pos:F2})##{id}"))
+            {
+                var symbolText = symbolEvent.Text.ToString();
+                if (ImGui.InputText("Text", ref symbolText, 128))
+                {
+                    symbolEvent.Text = new Symbol((uint)symbolText.Length, symbolText);
+                    parent.ChangeKey(id, symbolEvent);
+                }
+
+                float pos = symbolEvent.Pos;
+                if (ImGui.SliderFloat("Position", ref pos, 0.0f, 1.0f))
+                {
+                    symbolEvent.Pos = pos;
+                    parent.ChangeKey(id, symbolEvent);
+                }
+
+
+
+                ImGui.TreePop();
+            }
+        }
+
+
+        else
+        {
+            ImGui.Text($"Unknown Event Type (Pos: {animEvent.Pos:F2})");
+        }
+    }
     public static void Draw(object obj, int id = 0, bool drawLabels = true,
         ImGuiTableFlags toggleFlags = ImGuiTableFlags.None)
     {
         Type objType = obj.GetType();
-
-        var revisionField = obj.GetType()
-            .GetField("revision", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        uint revision = 0;
-
-        if (revisionField != null && revisionField.FieldType == typeof(ushort))
-        {
-            revision = Convert.ToUInt32(revisionField.GetValue(obj));
-        }
 
         if (drawLabels)
         {
@@ -297,6 +367,11 @@ public class EditorPanel
             ImGui.EndTable();
         }
 
+        if (obj is RndPropAnim propAnim)
+        {
+            DrawRndPropAnim(propAnim, id);
+        }
+
         ImGui.PopStyleVar();
         ImGui.PopID();
         ImGui.PopID();
@@ -311,6 +386,27 @@ public class EditorPanel
         var fieldValue = field.GetValue(parent);
         switch (fieldValue)
         {
+            case RndPropAnim propAnim:
+                DrawRndPropAnim(propAnim, id);
+                break;
+
+            case RndPropAnim.PropKey.AnimEventSymbol symbolEvent:
+                ImGui.Text($"Position: {symbolEvent.Pos:F2}");
+                var symbolText = symbolEvent.Text.ToString();
+                if (ImGui.InputText("Text", ref symbolText, 128))
+                {
+                    symbolEvent.Text = new Symbol((uint)symbolText.Length, symbolText);
+                    field.SetValue(parent, symbolEvent);
+                }
+
+                float pos = symbolEvent.Pos;
+                if (ImGui.SliderFloat("Position", ref pos, 0.0f, 1.0f))
+                {
+                    symbolEvent.Pos = pos;
+                    field.SetValue(parent, symbolEvent);
+                }
+                break;
+
             case object stringValue when field.FieldType == typeof(string) || field.FieldType.Name == "Symbol":
                 var str = stringValue.ToString();
                 if (ImGui.InputText("", ref str, 128))

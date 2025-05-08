@@ -14,7 +14,7 @@ namespace MiloLib.Assets.Ham
         public uint unkInt3;
         public uint unkInt4;
 
-        public MoveDir(ushort revision, ushort altRevision = 0) : base(revision, altRevision)
+        public MoveDir(ushort revision = 35, ushort altRevision = 0) : base(revision, altRevision)
         {
             revision = revision;
             altRevision = altRevision;
@@ -39,7 +39,17 @@ namespace MiloLib.Assets.Ham
             else
             {
                 // there is prooooobably some fields here but ive never seen them be anything but empty
-                reader.ReadBlock(25);
+                reader.ReadBlock(13);
+
+                if (revision == 34)
+                {
+                    reader.ReadBlock(12);
+                }
+            }
+
+            if (revision >= 34)
+            {
+                reader.ReadBlock(5);
             }
 
             if (standalone)
@@ -63,8 +73,20 @@ namespace MiloLib.Assets.Ham
             }
             else
             {
-                writer.WriteBlock(new byte[25]);
+                writer.WriteBlock(new byte[13]);
+
+                if (revision == 34)
+                {
+                    writer.WriteBlock(new byte[12]);
+                }
             }
+
+            if (revision >= 34)
+            {
+                writer.WriteBlock(new byte[5] { 0x4, 0x68, 0x61, 0x6d, 0x32 });
+            }
+
+
 
             if (standalone)
                 writer.WriteBlock(new byte[4] { 0xAD, 0xDE, 0xAD, 0xDE });

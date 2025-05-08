@@ -18,6 +18,10 @@ using Vector4 = System.Numerics.Vector4;
 public partial class Program
 {
 
+    // Track selected entries for multi-selection
+    private static HashSet<DirectoryMeta.Entry> selectedEntries = new HashSet<DirectoryMeta.Entry>();
+    private static bool isMultiSelecting = false;
+
     private static string PopupFlag = "";
 
     private static SearchWindow FindRefsSearch = new("Find References")
@@ -164,14 +168,14 @@ public partial class Program
 
     static async void PromptDuplicateEntry(DirectoryMeta dir, DirectoryMeta.Entry entry)
     {
-        
+
         var newName = await ShowTextPrompt("New name", "Duplicate", entry.name.value);
 
         if (newName == null)
         {
             return;
         }
-        
+
         try
         {
             var newEntry = DuplicateEntry(entry, dir);
@@ -193,7 +197,7 @@ public partial class Program
         {
             return;
         }
-        
+
         entry.name = newName;
         if (entry.dir != null)
         {
@@ -204,7 +208,7 @@ public partial class Program
     class AssetTypePrompt : Prompt<string?>
     {
         private int curType = 0;
-        readonly string[] assetTypes = ["Object", "Tex", "Group", "Trans", "BandSongPref", "Sfx", "BandCharDesc"];
+        readonly string[] assetTypes = ["Object", "Tex", "Group", "Trans", "BandSongPref", "Sfx", "BandCharDesc", "HamMove", "SkeletonClip", "CharClip", "DancerSequence", "RndPropAnim", "MoveDir"];
 
         public AssetTypePrompt()
         {
@@ -249,7 +253,28 @@ public partial class Program
             }
             else
             {
-                var assetType = await ShowGenericPrompt(new AssetTypePrompt());
+                string? assetType = null;
+                switch (Path.GetExtension(path))
+                {
+                    case ".move":
+                        assetType = "HamMove";
+                        break;
+                    case ".tex":
+                        assetType = "Tex";
+                        break;
+                    case ".seq":
+                        assetType = "DancerSequence";
+                        break;
+                    case ".clp":
+                        assetType = "SkeletonClip";
+                        break;
+                    case ".anim":
+                        assetType = "RndPropAnim";
+                        break;
+                    default:
+                        assetType = await ShowGenericPrompt(new AssetTypePrompt());
+                        break;
+                }
 
                 if (assetType == null)
                 {
@@ -264,7 +289,7 @@ public partial class Program
                 {
                     OpenErrorModal(e, "Failed to import asset.");
                 }
-                
+
             }
         }
     }
@@ -293,12 +318,78 @@ public partial class Program
         }
     }
 
+    class NewAssetPrompt : Prompt<(string, string)?>
+    {
+        private string newName = "";
+        private int curType = 0;
+        readonly string[] assetTypes = ["ObjectDir", "MoveDir"];
+
+        public NewAssetPrompt()
+        {
+            Title = "Create New Asset";
+        }
+
+        public override void Show()
+        {
+            if (BeginModal())
+            {
+                ImGui.InputText("Name", ref newName, 32);
+                ImGui.Combo("Asset type", ref curType, assetTypes, assetTypes.Length);
+
+                ImGui.Separator();
+                if (ImGui.Button("OK"))
+                {
+                    Complete((newName, assetTypes[curType]));
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("Cancel"))
+                {
+                    Complete(null);
+                }
+                ImGui.EndPopup();
+            }
+        }
+    }
+
+    static async void PromptCreateNewAsset(DirectoryMeta dir)
+    {
+        var promptInput = await ShowGenericPrompt(new NewAssetPrompt());
+        if (promptInput != null)
+        {
+            var (newName, assetType) = promptInput.Value;
+
+            try
+            {
+                Object newObj;
+                switch (assetType)
+                {
+                    case "ObjectDir":
+                        newObj = new ObjectDir(2, 0); // Using common revision values
+                        break;
+                    case "MoveDir":
+                        newObj = new MiloLib.Assets.Ham.MoveDir(2, 0); // Using common revision values
+                        break;
+                    default:
+                        throw new NotImplementedException($"Asset type {assetType} not implemented for creation");
+                }
+
+                // Create a new entry and add it to the directory
+                var entry = new DirectoryMeta.Entry(assetType, newName, newObj);
+                dir.entries.Add(entry);
+            }
+            catch (Exception e)
+            {
+                OpenErrorModal(e, $"Failed to create new {assetType}.");
+            }
+        }
+    }
+
     class AddSubDirPrompt : Prompt<(string, string)?>
     {
         private string newName = "";
         private static readonly List<string> Types = ["ObjectDir", "WorldDir", "RndDir", "PanelDir"];
         private int curType = 0;
-        
+
         public AddSubDirPrompt()
         {
             Title = "Add Inlined Subdirectory";
@@ -310,7 +401,7 @@ public partial class Program
             {
                 ImGui.InputText("Name", ref newName, 32);
                 ImGui.Combo("Type", ref curType, Types.ToArray(), Types.Count);
-                
+
                 ImGui.Separator();
                 if (ImGui.Button("OK"))
                 {
@@ -329,7 +420,7 @@ public partial class Program
     static async void PromptAddSubdir(DirectoryMeta dirEntry)
     {
         ObjectDir dir = (ObjectDir)dirEntry.directory;
-        
+
         var promptInput = await ShowGenericPrompt(new AddSubDirPrompt());
         if (promptInput != null)
         {
@@ -395,14 +486,14 @@ public partial class Program
         {
             flags |= ImGuiTreeNodeFlags.Selected;
         }
-        
+
         var iconSize = Settings.Loaded.ScaledIconSize;
         var framePadding = ImGui.GetStyle().FramePadding;
-        
+
         var drawList = ImGui.GetWindowDrawList();
         var treeLineColor = ImGui.GetColorU32(ImGuiCol.Text);
         treeLineColor = (0x00ffffff & treeLineColor) | 0x80000000;
-        
+
         Stack<Vector2> traceStack = new();
 
         // Adds to the trace stack, run before a tree directory is drawn
@@ -420,7 +511,7 @@ public partial class Program
             var line = traceStack.Pop();
             var stylePtr = ImGui.GetStyle();
             drawList.AddLine(line,
-                new Vector2(line.X, (ImGui.GetCursorScreenPos().Y - stylePtr.ItemSpacing.Y) - ImGui.GetFrameHeight()/2f + stylePtr.FramePadding.Y + 1f), treeLineColor);
+                new Vector2(line.X, (ImGui.GetCursorScreenPos().Y - stylePtr.ItemSpacing.Y) - ImGui.GetFrameHeight() / 2f + stylePtr.FramePadding.Y + 1f), treeLineColor);
         }
 
         void DrawChildLine(bool dir, Vector2 cursor)
@@ -516,10 +607,13 @@ public partial class Program
                     PromptImportAsset(dir);
                 }
 
-                ImGui.MenuItem(FontAwesome5.PlusCircle + "  New Asset", "", false, false);
-                
+                if (ImGui.MenuItem(FontAwesome5.PlusCircle + "  New Asset"))
+                {
+                    PromptCreateNewAsset(dir);
+                }
+
                 FindReferencesMenu(dir.name);
-                
+
                 ImGui.PopFont();
                 ImGui.EndPopup();
             }
@@ -534,73 +628,109 @@ public partial class Program
             if (ImGui.BeginPopupContextItem())
             {
                 ImGui.PushFont(Util.mainFont);
-                if (ImGui.MenuItem(FontAwesome5.TrashAlt + "  Delete Asset"))
+
+                // Check if we have multiple items selected
+                bool hasMultipleSelected = selectedEntries.Count > 1 && selectedEntries.Contains(entry);
+
+                if (hasMultipleSelected)
                 {
-                    if (viewingObject == entry.obj)
+                    if (ImGui.MenuItem(FontAwesome5.TrashAlt + $"  Delete Selected ({selectedEntries.Count} items)"))
                     {
-                        viewingObject = null;
-                    }
+                        // Create a copy of the selected entries to avoid collection modification issues
+                        var entriesToDelete = new List<DirectoryMeta.Entry>(selectedEntries);
 
-                    dir.entries.Remove(entry);
-                    curIndex--;
-                }
-
-                if (ImGui.MenuItem(FontAwesome5.Clone + "  Duplicate Asset"))
-                {
-                    PromptDuplicateEntry(dir, entry);
-                }
-
-                if (ImGui.MenuItem(FontAwesome5.Edit + "  Rename Asset"))
-                {
-                    PromptRenameEntry(entry);
-                }
-
-                ImGui.Separator();
-                if (ImGui.MenuItem(FontAwesome5.Share + "  Extract Asset"))
-                {
-                    var (canceled, path) = TinyDialogs.SaveFileDialog("Extract Asset", entry.name);
-
-                    if (!canceled)
-                    {
-                        File.WriteAllBytes(path, entry.objBytes.ToArray());
-                    }
-                }
-
-                if (ImGui.MenuItem(FontAwesome5.Recycle + "  Replace Asset"))
-                {
-                    var (canceled, paths) = TinyDialogs.OpenFileDialog("Replace Asset", "", false);
-                    if (!canceled)
-                    {
-                        var backupSuccess = false;
-                        var backupStream = new MemoryStream();
-                        try
+                        foreach (var selectedEntry in entriesToDelete)
                         {
-                            
-                            // Backup the asset in case of an error while reading
-                            entry.obj.GetType().GetMethod("Write").Invoke(entry.obj,
-                                [new EndianWriter(backupStream, currentScene.endian), false, dir, entry]);
-                            backupSuccess = true;
-                            var path = paths.First();
-
-                            byte[] fileBytes = File.ReadAllBytes(path);
-                            entry.objBytes = fileBytes.ToList();
-                            // Use reflection to call the read method as the comment below only calls the Object's Read()
-                            entry.obj.GetType().GetMethod("Read").Invoke(entry.obj, [new EndianReader(new MemoryStream(fileBytes), currentScene.endian), false, dir, entry]);
-                            //entry.obj.Read(new EndianReader(new MemoryStream(fileBytes), currentScene.endian), false, dir, entry);
-                        }
-                        catch (Exception e)
-                        {
-                            OpenErrorModal(e, "Cannot replace asset.");
-                            if (backupSuccess)
+                            if (viewingObject == selectedEntry.obj)
                             {
-                                backupStream.Seek(0, SeekOrigin.Begin);
-                                entry.obj.GetType().GetMethod("Read").Invoke(entry.obj, [new EndianReader(backupStream, currentScene.endian), false, dir, entry]);
+                                viewingObject = null;
+                            }
+
+                            // Find the directory containing this entry
+                            if (dir.entries.Contains(selectedEntry))
+                            {
+                                dir.entries.Remove(selectedEntry);
+                            }
+                        }
+
+                        // Clear selection after deletion
+                        selectedEntries.Clear();
+                        curIndex = -1; // Force reindex
+                    }
+                }
+                else
+                {
+                    if (ImGui.MenuItem(FontAwesome5.TrashAlt + "  Delete Asset"))
+                    {
+                        if (viewingObject == entry.obj)
+                        {
+                            viewingObject = null;
+                        }
+
+                        dir.entries.Remove(entry);
+                        selectedEntries.Remove(entry);
+                        curIndex--;
+                    }
+                }
+
+                if (!hasMultipleSelected)
+                {
+                    if (ImGui.MenuItem(FontAwesome5.Clone + "  Duplicate Asset"))
+                    {
+                        PromptDuplicateEntry(dir, entry);
+                    }
+
+                    if (ImGui.MenuItem(FontAwesome5.Edit + "  Rename Asset"))
+                    {
+                        PromptRenameEntry(entry);
+                    }
+
+                    ImGui.Separator();
+                    if (ImGui.MenuItem(FontAwesome5.Share + "  Extract Asset"))
+                    {
+                        var (canceled, path) = TinyDialogs.SaveFileDialog("Extract Asset", entry.name);
+
+                        if (!canceled)
+                        {
+                            File.WriteAllBytes(path, entry.objBytes.ToArray());
+                        }
+                    }
+
+                    if (ImGui.MenuItem(FontAwesome5.Recycle + "  Replace Asset"))
+                    {
+                        var (canceled, paths) = TinyDialogs.OpenFileDialog("Replace Asset", "", false);
+                        if (!canceled)
+                        {
+                            var backupSuccess = false;
+                            var backupStream = new MemoryStream();
+                            try
+                            {
+                                // Backup the asset in case of an error while reading
+                                entry.obj.GetType().GetMethod("Write").Invoke(entry.obj,
+                                    [new EndianWriter(backupStream, currentScene.endian), false, dir, entry]);
+                                backupSuccess = true;
+                                var path = paths.First();
+
+                                byte[] fileBytes = File.ReadAllBytes(path);
+                                entry.objBytes = fileBytes.ToList();
+                                // Use reflection to call the read method as the comment below only calls the Object's Read()
+                                entry.obj.GetType().GetMethod("Read").Invoke(entry.obj, [new EndianReader(new MemoryStream(fileBytes), currentScene.endian), false, dir, entry]);
+                            }
+                            catch (Exception e)
+                            {
+                                OpenErrorModal(e, "Cannot replace asset.");
+                                if (backupSuccess)
+                                {
+                                    backupStream.Seek(0, SeekOrigin.Begin);
+                                    entry.obj.GetType().GetMethod("Read").Invoke(entry.obj, [new EndianReader(backupStream, currentScene.endian), false, dir, entry]);
+                                }
                             }
                         }
                     }
+
+                    FindReferencesMenu(entry.name);
                 }
-                
-                FindReferencesMenu(entry.name);
+
                 ImGui.PopFont();
                 ImGui.EndPopup();
             }
@@ -640,7 +770,7 @@ public partial class Program
                 PushTrace();
                 if (Util.IconTreeItem("ObjectDir", "Inline Subdirectories", ImGuiTreeNodeFlags.SpanFullWidth))
                 {
-                    
+
                     for (int subDirIndex = 0; subDirIndex < objDir.inlineSubDirs.Count; subDirIndex++)
                     {
                         var subDir = objDir.inlineSubDirs[subDirIndex];
@@ -676,7 +806,7 @@ public partial class Program
                     {
                         ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0f, 0f, 0.7f, 1f));
                     }
-                    
+
                 }
                 var childLinePos = ImGui.GetCursorScreenPos();
 
@@ -702,19 +832,53 @@ public partial class Program
                     }
 
                     ImGuiTreeNodeFlags leafFlags = ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.SpanFullWidth;
-                    if (viewingObject != null && viewingObject == entry.obj)
+                    if ((viewingObject != null && viewingObject == entry.obj) || selectedEntries.Contains(entry))
                     {
                         leafFlags |= ImGuiTreeNodeFlags.Selected;
                     }
 
-                    
+
                     Util.SceneTreeItem(entry, leafFlags);
                     DrawChildLine(false, childLinePos);
                     ItemContextMenu(entry, ref entryIndex);
                     childrenDrawn++;
-                    if (ImGui.IsItemClicked(ImGuiMouseButton.Left) && entry.obj != null)
+                    if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
                     {
-                        NavigateObject(entry.obj);
+                        bool ctrlPressed = ImGui.GetIO().KeyCtrl;
+
+                        if (ctrlPressed)
+                        {
+                            // Toggle selection for this item
+                            if (selectedEntries.Contains(entry))
+                            {
+                                selectedEntries.Remove(entry);
+                            }
+                            else
+                            {
+                                selectedEntries.Add(entry);
+                            }
+
+                            // Still navigate to the object if it's the only one selected
+                            if (selectedEntries.Count == 1 && entry.obj != null)
+                            {
+                                NavigateObject(entry.obj);
+                            }
+                        }
+                        else
+                        {
+                            // Clear selection if ctrl is not pressed
+                            if (!selectedEntries.Contains(entry))
+                            {
+                                selectedEntries.Clear();
+                            }
+
+                            // Add this item to selection
+                            if (entry.obj != null)
+                            {
+                                selectedEntries.Add(entry);
+                                NavigateObject(entry.obj);
+                            }
+                        }
                     }
 
                     unsafe
@@ -766,5 +930,174 @@ public partial class Program
         {
             ImGui.PopStyleVar();
         }
+    }
+
+    // Add this method to handle keyboard shortcuts
+    private static void HandleKeyboardShortcuts()
+    {
+        // Check for Delete key to delete selected entries
+        if (ImGui.IsKeyPressed(ImGuiKey.Delete) && selectedEntries.Count > 0 && ImGui.IsWindowFocused())
+        {
+            DeleteSelectedEntries();
+        }
+
+        // Check for Ctrl+A to select all entries in current directory
+        if (ImGui.IsKeyPressed(ImGuiKey.A) && ImGui.GetIO().KeyCtrl && currentScene != null)
+        {
+            SelectAllEntriesInCurrentDirectory();
+        }
+    }
+
+    private static void DeleteSelectedEntries()
+    {
+        if (selectedEntries.Count == 0)
+            return;
+
+        // Group entries by their parent directory
+        var entriesByDir = new Dictionary<DirectoryMeta, List<DirectoryMeta.Entry>>();
+
+        foreach (var entry in selectedEntries)
+        {
+            // Find the parent directory for this entry
+            DirectoryMeta parentDir = FindParentDirectory(entry);
+            if (parentDir != null)
+            {
+                if (!entriesByDir.ContainsKey(parentDir))
+                {
+                    entriesByDir[parentDir] = new List<DirectoryMeta.Entry>();
+                }
+                entriesByDir[parentDir].Add(entry);
+            }
+        }
+
+        // Delete entries from each directory
+        foreach (var kvp in entriesByDir)
+        {
+            DirectoryMeta dir = kvp.Key;
+            List<DirectoryMeta.Entry> entries = kvp.Value;
+
+            foreach (var entry in entries)
+            {
+                if (viewingObject == entry.obj)
+                {
+                    viewingObject = null;
+                }
+                dir.entries.Remove(entry);
+            }
+        }
+
+        // Clear selection after deletion
+        selectedEntries.Clear();
+    }
+
+    private static DirectoryMeta FindParentDirectory(DirectoryMeta.Entry entry)
+    {
+        // This is a simplified approach - in a real implementation,
+        // you would need to traverse the scene hierarchy to find the parent
+        if (currentScene != null)
+        {
+            if (currentScene.dirMeta.entries.Contains(entry))
+                return currentScene.dirMeta;
+
+            // Search in subdirectories
+            return FindParentDirectoryRecursive(currentScene.dirMeta, entry);
+        }
+        return null;
+    }
+
+    private static DirectoryMeta FindParentDirectoryRecursive(DirectoryMeta dir, DirectoryMeta.Entry entry)
+    {
+        if (dir.entries.Contains(entry))
+            return dir;
+
+        // Check in subdirectories if this is an ObjectDir
+        if (dir.directory is ObjectDir objDir)
+        {
+            foreach (var subDir in objDir.inlineSubDirs)
+            {
+                var result = FindParentDirectoryRecursive(subDir, entry);
+                if (result != null)
+                    return result;
+            }
+        }
+
+        // Check in directory entries
+        foreach (var dirEntry in dir.entries)
+        {
+            if (dirEntry.dir != null)
+            {
+                var result = FindParentDirectoryRecursive(dirEntry.dir, entry);
+                if (result != null)
+                    return result;
+            }
+        }
+
+        return null;
+    }
+
+    private static void SelectAllEntriesInCurrentDirectory()
+    {
+        selectedEntries.Clear();
+
+        // Find the current directory being viewed
+        DirectoryMeta currentDir = null;
+
+        if (viewingObject is ObjectDir objDir)
+        {
+            // Find the DirectoryMeta that contains this ObjectDir
+            currentDir = FindDirectoryMetaForObjectDir(objDir);
+        }
+
+        if (currentDir != null)
+        {
+            // Select all entries in this directory
+            foreach (var entry in currentDir.entries)
+            {
+                if (entry.obj != null)
+                {
+                    selectedEntries.Add(entry);
+                }
+            }
+        }
+    }
+
+    private static DirectoryMeta FindDirectoryMetaForObjectDir(ObjectDir objDir)
+    {
+        // Start with the root directory
+        if (currentScene.dirMeta.directory == objDir)
+            return currentScene.dirMeta;
+
+        return FindDirectoryMetaForObjectDirRecursive(currentScene.dirMeta, objDir);
+    }
+
+    private static DirectoryMeta FindDirectoryMetaForObjectDirRecursive(DirectoryMeta dir, ObjectDir objDir)
+    {
+        // Check if this directory matches
+        if (dir.directory == objDir)
+            return dir;
+
+        // Check in subdirectories if this is an ObjectDir
+        if (dir.directory is ObjectDir currentObjDir)
+        {
+            foreach (var subDir in currentObjDir.inlineSubDirs)
+            {
+                var result = FindDirectoryMetaForObjectDirRecursive(subDir, objDir);
+                if (result != null)
+                    return result;
+            }
+        }
+
+        // Check in directory entries
+        foreach (var entry in dir.entries)
+        {
+            if (entry.dir != null)
+            {
+                var result = FindDirectoryMetaForObjectDirRecursive(entry.dir, objDir);
+                if (result != null)
+                    return result;
+            }
+        }
+
+        return null;
     }
 }

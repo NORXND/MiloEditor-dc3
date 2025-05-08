@@ -29,6 +29,14 @@ namespace MiloLib.Assets.Rnd
             {
                 public Symbol Text1 { get; set; }
                 public Symbol Text2 { get; set; }
+
+                public Symbol Value
+                {
+                    get => Text1; set
+                    {
+
+                    }
+                }
                 public float Pos { get; set; }
             }
 
@@ -53,6 +61,7 @@ namespace MiloLib.Assets.Rnd
             public struct AnimEventSymbol : IAnimEvent
             {
                 public Symbol Text { get; set; }
+
                 public float Pos { get; set; }
             }
 
@@ -105,6 +114,11 @@ namespace MiloLib.Assets.Rnd
 
             private uint keysCount;
             public List<IAnimEvent> keys = new();
+
+            public void ChangeKey(int pos, IAnimEvent newEvent)
+            {
+                keys[pos] = newEvent;
+            }
 
             public PropKey Read(EndianReader reader, uint revision)
             {
@@ -186,7 +200,7 @@ namespace MiloLib.Assets.Rnd
                 writer.WriteInt32((int)exceptionType);
                 if (revision >= 13)
                     writer.WriteBoolean(unkBool);
-                writer.WriteUInt32(keysCount);
+                writer.WriteUInt32((uint)keys.Count);
                 switch (type1)
                 {
                     case PropType.kPropFloat:
@@ -288,10 +302,15 @@ namespace MiloLib.Assets.Rnd
 
 
             if (revision >= 13)
+            {
                 unkBool2 = reader.ReadBoolean();
+                reader.BaseStream.Position += 4;
 
-
-
+                if (revision >= 15)
+                {
+                    reader.BaseStream.Position += 4;
+                }
+            }
 
             if (standalone)
                 if ((reader.Endianness == Endian.BigEndian ? 0xADDEADDE : 0xDEADDEAD) != reader.ReadUInt32()) throw new Exception("Got to end of standalone asset but didn't find the expected end bytes, read likely did not succeed");
@@ -318,7 +337,17 @@ namespace MiloLib.Assets.Rnd
             }
 
             if (revision >= 13)
+            {
                 writer.WriteBoolean(unkBool2);
+
+                writer.BaseStream.Position += 4;
+
+                if (revision >= 15)
+                {
+                    writer.BaseStream.Position += 4;
+                }
+            }
+
 
             if (standalone)
                 writer.WriteBlock(new byte[4] { 0xAD, 0xDE, 0xAD, 0xDE });

@@ -16,6 +16,7 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace ImMilo;
 
+using MiloLib.Assets.Ham;
 using Veldrid;
 using Veldrid.Sdl2;
 using Veldrid.StartupUtilities;
@@ -662,6 +663,24 @@ public static partial class Program
                     break;
                 case "BandCharDesc":
                     entry.obj = new BandCharDesc().Read(reader, false, dir, entry);
+                    break;
+                case "HamMove":
+                    entry.obj = new HamMove().Read(reader, false, dir, entry);
+                    break;
+                case "SkeletonClip":
+                    entry.obj = new SkeletonClip().Read(reader, false, dir, entry);
+                    break;
+                case "CharClip":
+                    entry.obj = new CharClip().Read(reader, false, dir, entry);
+                    break;
+                case "DancerSequence":
+                    entry.obj = new DancerSequence().Read(reader, false, dir, entry);
+                    break;
+                case "RndPropAnim":
+                    entry.obj = new RndPropAnim().Read(reader, false, dir, entry);
+                    break;
+                case "MoveDir":
+                    entry.obj = new MoveDir().Read(reader, false, dir, entry);
                     break;
                 default:
                     Debug.WriteLine("Unknown asset type: " + entry.type.value);

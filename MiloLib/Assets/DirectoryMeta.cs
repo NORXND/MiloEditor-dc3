@@ -453,8 +453,15 @@ namespace MiloLib.Assets
             Symbol.Write(writer, type);
             Symbol.Write(writer, name);
 
-            writer.WriteInt32((entries.Count * 2) + 4);
-            writer.WriteUInt32(stringTableSize);
+            if (revision >= 32)
+            {
+                writer.WriteBoolean(false);
+            }
+
+
+            writer.WriteUInt32((uint)(stringTableCount << 8));
+
+            writer.WriteUInt32((uint)(stringTableSize << 8));
 
             writer.WriteInt32((int)entries.Count);
 
@@ -715,10 +722,13 @@ namespace MiloLib.Assets
                     entry.isProxy = true;
                     entry.obj = new ObjectDir(0).Read(reader, true, this, entry);
 
-                    dir = new DirectoryMeta();
-                    dir.platform = platform;
-                    dir.Read(reader);
-                    entry.dir = dir;
+                    if (((ObjectDir)entry.obj).inlineProxy && ((ObjectDir)entry.obj).proxyPath.value != "")
+                    {
+                        dir = new DirectoryMeta();
+                        dir.platform = platform;
+                        dir.Read(reader);
+                        entry.dir = dir;
+                    }
                     break;
                 case "OverdriveMeterDir":
                     Debug.WriteLine("Reading entry OverdriveMeterDir " + entry.name.value);
@@ -1172,6 +1182,24 @@ namespace MiloLib.Assets
                     Debug.WriteLine("Reading entry WorldReflection " + entry.name.value);
                     entry.obj = new WorldReflection().Read(reader, true, this, entry);
                     break;
+                case "HamMove":
+                    entry.obj = new HamMove().Read(reader, true, this, entry);
+                    break;
+                case "SkeletonClip":
+                    entry.obj = new SkeletonClip().Read(reader, true, this, entry);
+                    break;
+                case "CharClip":
+                    entry.obj = new CharClip().Read(reader, true, this, entry);
+                    break;
+                case "DancerSequence":
+                    entry.obj = new DancerSequence().Read(reader, true, this, entry);
+                    break;
+                case "Sound":
+                    entry.obj = new Sound().Read(reader, true, this, entry);
+                    break;
+                case "MoveGraph":
+                    entry.obj = new MoveGraph().Read(reader, true, this, entry);
+                    break;
                 // re-enable when the class is 100%
                 //case "CharClip":
                 //    Debug.WriteLine("Reading entry CharClip " + entry.name.value);
@@ -1179,7 +1207,7 @@ namespace MiloLib.Assets
                 //    break;
 
                 default:
-                    Debug.WriteLine("Unknown entry type " + entry.type.value + " of name " + entry.name.value + ", read an Object and then read until we see 0xADDEADDE to skip over it, curpos" + reader.BaseStream.Position);
+                    Console.WriteLine("Unknown entry type: " + entry.name.value + " => " + entry.type.value);
 
                     entry.typeRecognized = false;
 
@@ -1284,12 +1312,19 @@ namespace MiloLib.Assets
                 case "MoveDir":
                     ((MoveDir)entry.obj).Write(writer, true, this, entry);
                     entry.isProxy = false;
-                    entry.dir.Write(writer);
+
+                    if (entry.dir != null)
+                    {
+                        entry.dir.Write(writer);
+                    }
                     break;
                 case "ObjectDir":
                     ((ObjectDir)entry.obj).Write(writer, true, this, entry);
                     entry.isProxy = false;
-                    entry.dir.Write(writer);
+                    if (entry.dir != null)
+                    {
+                        entry.dir.Write(writer);
+                    }
                     break;
                 case "OverdriveMeterDir":
                     ((OverdriveMeterDir)entry.obj).Write(writer, true, this, entry);
@@ -1593,6 +1628,24 @@ namespace MiloLib.Assets
                     break;
                 case "WorldReflection":
                     ((WorldReflection)entry.obj).Write(writer, true, this, entry);
+                    break;
+                case "HamMove":
+                    ((HamMove)entry.obj).Write(writer, true, this, entry);
+                    break;
+                case "SkeletonClip":
+                    ((SkeletonClip)entry.obj).Write(writer, true, this, entry);
+                    break;
+                case "CharClip":
+                    ((CharClip)entry.obj).Write(writer, true, this, entry);
+                    break;
+                case "DancerSequence":
+                    ((DancerSequence)entry.obj).Write(writer, true, this, entry);
+                    break;
+                case "Sound":
+                    ((Sound)entry.obj).Write(writer, true, this, entry);
+                    break;
+                case "MoveGraph":
+                    ((MoveGraph)entry.obj).Write(writer, true, this, entry);
                     break;
                 // re-enable when the class is 100%
                 //case "CharClip":

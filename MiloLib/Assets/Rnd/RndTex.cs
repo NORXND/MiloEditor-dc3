@@ -157,6 +157,11 @@ namespace MiloLib.Assets.Rnd
 
             writer.WriteUInt32(bpp);
 
+            if (parent.revision == 25 && revision == 11)
+            {
+                writer.WriteUInt32(0);
+            }
+
             Symbol.Write(writer, externalPath);
 
             if (revision >= 8)
